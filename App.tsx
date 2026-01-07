@@ -4,11 +4,11 @@ import {
   Sparkles, Maximize2, Layout, Type, Palette, Monitor, Plus, Settings2,
   Image as ImageIcon, CheckCircle2, ArrowRight, Command, Grid, Layers, ShieldCheck,
   RefreshCw, Menu, X, PenTool, Box, Activity, PanelLeftClose, PanelRightClose,
-  PanelLeftOpen, PanelRightOpen
+  PanelLeftOpen, PanelRightOpen, Square, MousePointer2, Trash2
 } from 'lucide-react';
-import { Slide, Presentation, GenerationStatus, DesignTheme, PresentationStyle, SlideLayout, VisualStyle } from './types';
+import { Slide, Presentation, GenerationStatus, DesignTheme, PresentationStyle, SlideLayout, VisualStyle, SlideElement } from './types';
 import { generatePresentationStructure, generateSlideImage } from './services/geminiService';
-import { fileToBase64 } from './utils';
+import { fileToBase64, hydrateLayoutToElements, generateId } from './utils';
 import SlideRenderer from './components/SlideRenderer';
 
 // Default initial state
@@ -43,6 +43,7 @@ export default function App() {
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [activeTab, setActiveTab] = useState<'design' | 'content'>('design');
+  const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   
   // Responsive State
   const [showLeftSidebar, setShowLeftSidebar] = useState(true);
@@ -99,9 +100,15 @@ export default function App() {
       
       const structure = await generatePresentationStructure(base64File, mimeType, notes);
       
+      // Hydrate static layouts to movable elements
+      const hydratedSlides = structure.slides.map(slide => ({
+         ...slide,
+         elements: hydrateLayoutToElements(slide)
+      }));
+
       const initialPresentation: Presentation = {
         title: structure.title,
-        slides: structure.slides,
+        slides: hydratedSlides,
         style: {
           theme: (structure.theme as DesignTheme) || 'modern',
           primaryColor: '',
@@ -127,9 +134,13 @@ export default function App() {
           }));
 
           try {
-             // Pass default visual style
              const base64Image = await generateSlideImage(slide.visualPrompt, initialPresentation.style.visualStyle);
-             updatedSlides[i] = { ...slide, imageUrl: base64Image };
+             // Update the imageURL AND the specific element that holds the image
+             updatedSlides[i] = { 
+                ...slide, 
+                imageUrl: base64Image,
+                elements: slide.elements.map(el => el.type === 'image' ? { ...el, content: `data:image/png;base64,${base64Image}` } : el)
+             };
              setPresentation(prev => prev ? ({ ...prev, slides: [...updatedSlides] }) : null);
           } catch (err) {
             console.error(`Failed to generate image for slide ${i}`, err);
@@ -157,19 +168,62 @@ export default function App() {
     const index = presentation.slides.findIndex(s => s.id === slideId);
     if (index === -1) return;
 
+    // Set loading state in elements
     const slidesCopy = [...presentation.slides];
-    slidesCopy[index] = { ...slidesCopy[index], imageUrl: '' }; 
+    slidesCopy[index].elements = slidesCopy[index].elements.map(el => el.type === 'image' ? { ...el, content: '' } : el);
     setPresentation({ ...presentation, slides: slidesCopy });
 
     try {
-       // Use current visual style from presentation state
        const newImage = await generateSlideImage(prompt, presentation.style.visualStyle);
        const finalSlides = [...presentation.slides];
-       finalSlides[index] = { ...finalSlides[index], imageUrl: newImage };
+       finalSlides[index] = {
+          ...finalSlides[index],
+          imageUrl: newImage,
+          elements: finalSlides[index].elements.map(el => el.type === 'image' ? { ...el, content: `data:image/png;base64,${newImage}` } : el)
+       };
        setPresentation({ ...presentation, slides: finalSlides });
     } catch (e) {
        console.error("Failed to regen", e);
     }
+  };
+
+  // --- Canvas Tools ---
+
+  const addElement = (type: 'text' | 'shape' | 'image') => {
+     if(!presentation) return;
+     const currentSlide = presentation.slides[currentSlideIndex];
+     const newId = generateId();
+     
+     let newElement: SlideElement;
+
+     if (type === 'text') {
+        newElement = {
+           id: newId, type: 'text', content: 'New Text', x: 40, y: 40, width: 20, height: 10,
+           style: { fontSize: 2, fontWeight: 'normal', textAlign: 'left', zIndex: 10 }
+        };
+     } else if (type === 'shape') {
+        newElement = {
+           id: newId, type: 'shape', content: '', x: 35, y: 35, width: 30, height: 30,
+           style: { backgroundColor: presentation.style.primaryColor || '#2563EB', zIndex: 5 }
+        };
+     } else {
+        // Image placeholder
+        newElement = {
+           id: newId, type: 'image', content: '', x: 30, y: 20, width: 40, height: 40,
+           style: { zIndex: 5 }
+        };
+     }
+
+     updateSlide({ ...currentSlide, elements: [...currentSlide.elements, newElement] });
+     setSelectedElementId(newId);
+  };
+
+  const deleteSelectedElement = () => {
+     if (!presentation || !selectedElementId) return;
+     const currentSlide = presentation.slides[currentSlideIndex];
+     const newElements = currentSlide.elements.filter(el => el.id !== selectedElementId);
+     updateSlide({ ...currentSlide, elements: newElements });
+     setSelectedElementId(null);
   };
 
   const handleExport = () => {
@@ -180,12 +234,14 @@ export default function App() {
   const nextSlide = () => {
     if (presentation && currentSlideIndex < presentation.slides.length - 1) {
       setCurrentSlideIndex(prev => prev + 1);
+      setSelectedElementId(null);
     }
   };
 
   const prevSlide = () => {
     if (currentSlideIndex > 0) {
       setCurrentSlideIndex(prev => prev - 1);
+      setSelectedElementId(null);
     }
   };
 
@@ -209,6 +265,7 @@ export default function App() {
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return;
       if(e.key === 'ArrowRight') nextSlide();
       if(e.key === 'ArrowLeft') prevSlide();
+      if(e.key === 'Delete' || e.key === 'Backspace') deleteSelectedElement();
   };
 
   useEffect(() => {
@@ -396,7 +453,6 @@ export default function App() {
       {/* Top Bar */}
       <header className="h-16 border-b border-white/5 bg-[#0B0F19] flex items-center justify-between px-4 md:px-6 z-40 shrink-0">
         <div className="flex items-center gap-4 md:gap-6">
-           {/* Sidebar Toggle (Mobile/Desktop) */}
            <button 
               onClick={() => setShowLeftSidebar(!showLeftSidebar)}
               className="p-2 text-slate-400 hover:bg-white/5 rounded-md transition-colors"
@@ -424,13 +480,29 @@ export default function App() {
         </div>
         
         <div className="flex items-center gap-2 md:gap-3">
+           {/* Add Element Toolbar - Now visible in Header for quick access */}
+           <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1 mr-4 border border-white/5">
+             <button onClick={() => addElement('text')} title="Add Text" className="p-2 text-slate-300 hover:text-white hover:bg-white/10 rounded transition-colors">
+               <Type className="w-4 h-4" />
+             </button>
+             <button onClick={() => addElement('shape')} title="Add Shape" className="p-2 text-slate-300 hover:text-white hover:bg-white/10 rounded transition-colors">
+               <Square className="w-4 h-4" />
+             </button>
+             <button onClick={() => addElement('image')} title="Add Image Placeholder" className="p-2 text-slate-300 hover:text-white hover:bg-white/10 rounded transition-colors">
+               <ImageIcon className="w-4 h-4" />
+             </button>
+           </div>
+
            <button 
              onClick={handleExport}
              className="hidden md:flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-slate-200 rounded-lg text-sm font-medium border border-white/5 transition-colors"
            >
               <Download className="w-4 h-4" /> Export
            </button>
-           <button className="flex items-center gap-2 px-3 py-2 md:px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium shadow-lg shadow-blue-500/20 transition-all">
+           <button 
+             onClick={toggleFullscreen}
+             className="flex items-center gap-2 px-3 py-2 md:px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium shadow-lg shadow-blue-500/20 transition-all"
+           >
               <Monitor className="w-4 h-4" /> <span className="hidden md:inline">Present</span>
            </button>
            <button 
@@ -439,7 +511,6 @@ export default function App() {
            >
               <Settings2 className="w-5 h-5" />
            </button>
-           <div className="hidden md:block w-8 h-8 rounded-full bg-gradient-to-tr from-purple-500 to-blue-500 ml-4 border-2 border-[#0B0F19]"></div>
         </div>
       </header>
 
@@ -462,7 +533,10 @@ export default function App() {
                     slide={slide} 
                     style={presentation.style} 
                     isActive={currentSlideIndex === idx}
-                    onClick={() => setCurrentSlideIndex(idx)}
+                    onClick={() => {
+                       setCurrentSlideIndex(idx);
+                       setSelectedElementId(null);
+                    }}
                     index={idx}
                   />
                ))}
@@ -471,7 +545,17 @@ export default function App() {
 
          {/* Center: Canvas */}
          <div className="flex-1 bg-[#0B0F19] relative flex flex-col min-w-0">
-            <div className="flex-1 flex items-center justify-center p-4 md:p-8 overflow-hidden bg-grid-pattern">
+            <div className="flex-1 flex items-center justify-center p-4 md:p-8 overflow-hidden bg-grid-pattern relative">
+               
+               {/* Selection Indicator Overlay (e.g. showing active element) */}
+               {selectedElementId && (
+                  <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-xs px-3 py-1 rounded-full shadow-lg z-50 flex items-center gap-2 animate-fade-in-up">
+                     <MousePointer2 className="w-3 h-3" /> Element Selected
+                     <div className="h-3 w-px bg-white/20 mx-1" />
+                     <button onClick={deleteSelectedElement} className="hover:text-red-200"><Trash2 className="w-3 h-3" /></button>
+                  </div>
+               )}
+
                <div 
                  ref={slideContainerRef}
                  className="aspect-video w-full max-w-6xl shadow-2xl shadow-black rounded-sm overflow-hidden bg-white relative ring-1 ring-white/10 transition-all"
@@ -481,6 +565,8 @@ export default function App() {
                      style={presentation.style}
                      onUpdate={updateSlide}
                      onRegenerateImage={handleRegenerateImage}
+                     selectedElementId={selectedElementId}
+                     onSelectElement={setSelectedElementId}
                   />
                </div>
             </div>
@@ -540,11 +626,12 @@ export default function App() {
                
                {activeTab === 'design' ? (
                   <>
-                     {/* Layout Selector */}
+                     {/* Layout Selector - Re-hydrates if clicked */}
                      <div className="space-y-4">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                           <Layout className="w-3.5 h-3.5" /> Slide Layout
+                           <Layout className="w-3.5 h-3.5" /> Template Layout
                         </label>
+                        <p className="text-[10px] text-slate-500">Warning: Changing layout resets current element positions.</p>
                         <div className="grid grid-cols-2 gap-2">
                            {[
                               SlideLayout.TITLE, SlideLayout.CONTENT_LEFT, SlideLayout.CONTENT_RIGHT, 
@@ -552,7 +639,13 @@ export default function App() {
                            ].map((l) => (
                               <button
                                  key={l}
-                                 onClick={() => updateSlide({...presentation.slides[currentSlideIndex], layout: l})}
+                                 onClick={() => {
+                                    // Resetting the layout involves re-hydrating the elements from the layout type
+                                    const updatedSlide = {...presentation.slides[currentSlideIndex], layout: l};
+                                    updatedSlide.elements = hydrateLayoutToElements(updatedSlide);
+                                    updateSlide(updatedSlide);
+                                    setSelectedElementId(null);
+                                 }}
                                  className={`p-2 rounded text-[10px] font-medium border transition-all ${presentation.slides[currentSlideIndex].layout === l ? 'bg-blue-600 border-blue-500 text-white' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'}`}
                               >
                                  {l.replace('_', ' ')}

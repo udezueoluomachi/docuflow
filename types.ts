@@ -8,6 +8,29 @@ export enum SlideLayout {
   PROCESS = 'PROCESS'
 }
 
+export type ElementType = 'text' | 'image' | 'shape';
+
+export interface SlideElement {
+  id: string;
+  type: ElementType;
+  content: string; // Text content or Image Base64/URL
+  x: number; // Percentage 0-100
+  y: number; // Percentage 0-100
+  width: number; // Percentage 0-100
+  height: number; // Percentage 0-100
+  rotation?: number;
+  style?: {
+    fontSize?: number;
+    fontWeight?: string;
+    color?: string;
+    backgroundColor?: string;
+    zIndex?: number;
+    borderRadius?: number;
+    fontFamily?: string;
+    textAlign?: 'left' | 'center' | 'right';
+  };
+}
+
 export interface Slide {
   id: string;
   layout: SlideLayout;
@@ -17,6 +40,7 @@ export interface Slide {
   visualPrompt?: string;
   imageUrl?: string;
   speakerNotes: string;
+  elements: SlideElement[]; // New field for free-form canvas
 }
 
 export type DesignTheme = 'modern' | 'elegant' | 'tech' | 'minimal';

@@ -69,27 +69,40 @@
           size: landscape;
           margin: 0;
         }
-        body * {
+        
+        body {
           visibility: hidden;
+          background: white;
         }
-        #print-container, #print-container * {
-          visibility: visible;
-        }
+
+        /* 
+         * Critical fix: Override the 'hidden' class (display: none) 
+         * and ensure the print container is visible and styled correctly.
+         */
         #print-container {
+          visibility: visible;
+          display: block !important; 
           position: absolute;
           left: 0;
           top: 0;
           width: 100%;
+          z-index: 9999;
           background: white;
         }
+        
+        #print-container * {
+          visibility: visible;
+        }
+
         .print-slide {
           break-after: page;
           page-break-after: always;
-          width: 100vw;
-          height: 100vh;
+          width: 100vw; /* Viewport width for PDF page */
+          height: 100vh; /* Viewport height for PDF page */
           overflow: hidden;
           print-color-adjust: exact;
           -webkit-print-color-adjust: exact;
+          position: relative;
         }
       }
     </style>
