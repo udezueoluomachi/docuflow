@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>DocuFlow AI</title>
+    <title>DocuFlow AI - Intelligent Presentation Builder</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script type="importmap">
       {
@@ -18,7 +18,7 @@
     </script>
     <style>
       /* Font Families */
-      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;700&family=Montserrat:wght@400;600;800&family=Open+Sans:wght@400;600&family=Lato:wght@300;400;700&display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap');
       
       body {
         font-family: 'Inter', sans-serif;
@@ -26,9 +26,33 @@
       
       /* Typography Utilities */
       .font-serif { font-family: 'Playfair Display', serif; }
-      .font-montserrat { font-family: 'Montserrat', sans-serif; }
-      .font-opensans { font-family: 'Open Sans', sans-serif; }
-      .font-lato { font-family: 'Lato', sans-serif; }
+      .font-sans-premium { font-family: 'DM Sans', sans-serif; }
+      .font-inter { font-family: 'Inter', sans-serif; }
+      .font-mono-premium { font-family: 'JetBrains Mono', monospace; }
+
+      /* Animations */
+      @keyframes fade-in-up {
+        0% { opacity: 0; transform: translateY(20px); }
+        100% { opacity: 1; transform: translateY(0); }
+      }
+      
+      @keyframes float {
+        0% { transform: translateY(0px); }
+        50% { transform: translateY(-10px); }
+        100% { transform: translateY(0px); }
+      }
+
+      .animate-fade-in-up {
+        animation: fade-in-up 0.8s ease-out forwards;
+      }
+      
+      .animate-float {
+        animation: float 6s ease-in-out infinite;
+      }
+
+      .delay-100 { animation-delay: 100ms; }
+      .delay-200 { animation-delay: 200ms; }
+      .delay-300 { animation-delay: 300ms; }
 
       /* Hide scrollbar for clean presentation view */
       .no-scrollbar::-webkit-scrollbar {
@@ -70,7 +94,7 @@
       }
     </style>
   </head>
-  <body class="bg-slate-900 text-slate-100 antialiased">
+  <body class="bg-[#0B0F19] text-slate-100 antialiased selection:bg-blue-500/30">
     <div id="root"></div>
   </body>
 </html>

@@ -21,10 +21,13 @@ export interface Slide {
 
 export type DesignTheme = 'modern' | 'elegant' | 'tech' | 'minimal';
 
+export type VisualStyle = 'photorealistic' | 'minimal-vector' | 'hand-drawn' | 'isometric-3d' | 'abstract-geometric';
+
 export interface PresentationStyle {
   theme: DesignTheme;
   primaryColor: string;
   fontScale: number; // 0.8 to 1.2
+  visualStyle: VisualStyle;
 }
 
 export interface Presentation {
