@@ -12,34 +12,23 @@ export const generatePresentationStructure = async (
   fileBase64: string | null,
   fileMimeType: string | null,
   userNotes: string
-): Promise<{ slides: Slide[]; title: string }> => {
+): Promise<{ slides: Slide[]; title: string; theme: string }> => {
   const ai = getAiClient();
-  // Using gemini-3-pro-preview for advanced reasoning and "Thinking" capabilities
   const modelId = "gemini-3-pro-preview";
 
   const systemPrompt = `
-    You are an expert Information Designer and Visual Storyteller. 
-    Your goal is to transform any provided document (Product Requirements, User Guides, Project Specs, or Pitch Decks) into a clear, visual presentation.
+    You are an expert Information Designer and Product Lead. 
+    Your goal is to transform provided documents (PRDs, Guides, Pitches) into a professional presentation.
     
     CRITICAL INSTRUCTIONS:
-    1. FAITHFULNESS: Tell the story EXACTLY as it is in the source. 
-       - If the doc explains a user flow, create slides that show that flow step-by-step.
-       - If it's a PRD, structure slides around features and capabilities.
-       - If it's a Pitch, structure around value and solution.
-       - Do not simply summarize; visualize the "How" and "What".
-    
-    2. THINKING & INNOVATION: 
-       - Analyze the document type first.
-       - Break down complex technical concepts into digestible visual slides.
-       - Use the 'PROCESS' layout for timelines, user journeys, or step-by-step instructions.
-    
-    3. VISUALS:
-       - For 'visualPrompt', describe the SPECIFIC visual needed to explain the slide.
-       - If a user screen/interface is described, prompt for a "minimalist abstract wireframe of a [specific screen] interface".
-       - If a process is described, prompt for a "clean flowchart or process diagram showing [steps]".
-       - Keep visual prompts descriptive but abstract enough for an AI image generator (avoid specific text rendering requests).
-    
-    4. SPEAKER NOTES: Provide detailed explanation notes, as if you are teaching the audience the content of the slide.
+    1. FAITHFULNESS: Tell the story EXACTLY as it is in the source.
+    2. CLEAN TEXT: Do NOT use markdown symbols (like **, ##) in the JSON output strings. Return clean, plain text.
+    3. UI MOCKUPS: If the content describes a software interface, screen, or dashboard, explicitly request a UI Mockup in the 'visualPrompt'.
+       - Example visualPrompt: "High-fidelity UI mockup of a user analytics dashboard, dark mode, clean figma style"
+    4. LAYOUTS:
+       - Use 'PROCESS' for flows.
+       - Use 'DATA' for metrics.
+       - Use 'CONTENT_LEFT'/'RIGHT' for general content with visuals.
     
     Structure the output as JSON.
   `;
@@ -70,13 +59,13 @@ export const generatePresentationStructure = async (
     },
     config: {
       systemInstruction: systemPrompt,
-      // Enable thinking to allow the model to plan the narrative structure effectively
       thinkingConfig: { thinkingBudget: 2048 }, 
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.OBJECT,
         properties: {
-          title: { type: Type.STRING, description: "Title of the entire presentation" },
+          title: { type: Type.STRING },
+          theme: { type: Type.STRING, enum: ['modern', 'elegant', 'tech', 'minimal'] },
           slides: {
             type: Type.ARRAY,
             items: {
@@ -98,14 +87,14 @@ export const generatePresentationStructure = async (
                 title: { type: Type.STRING },
                 subtitle: { type: Type.STRING },
                 content: { type: Type.ARRAY, items: { type: Type.STRING } },
-                visualPrompt: { type: Type.STRING, description: "A detailed prompt for generating the slide's background or visual aid." },
+                visualPrompt: { type: Type.STRING },
                 speakerNotes: { type: Type.STRING }
               },
               required: ["id", "layout", "title", "content", "visualPrompt", "speakerNotes"]
             }
           }
         },
-        required: ["title", "slides"]
+        required: ["title", "slides", "theme"]
       }
     }
   });
@@ -125,52 +114,43 @@ export const generateSlideImage = async (prompt: string): Promise<string> => {
   const ai = getAiClient();
   const modelId = "gemini-2.5-flash-image"; 
 
-  // Dynamic style instruction based on keywords in the prompt
+  const isUiRequest = prompt.toLowerCase().includes("ui") || 
+                      prompt.toLowerCase().includes("screen") || 
+                      prompt.toLowerCase().includes("mockup") || 
+                      prompt.toLowerCase().includes("dashboard") ||
+                      prompt.toLowerCase().includes("interface");
+
   let styleInstruction = "Modern, clean, professional vector art style.";
-  if (prompt.toLowerCase().includes("wireframe") || prompt.toLowerCase().includes("interface")) {
-    styleInstruction = "High-fidelity minimalist UI wireframe, blueprint style, abstract tech aesthetic.";
+  
+  if (isUiRequest) {
+    styleInstruction = "High-fidelity UI Design, Figma Style, clean user interface, modern SaaS aesthetic, detailed, pixel perfect.";
   } else if (prompt.toLowerCase().includes("chart") || prompt.toLowerCase().includes("graph")) {
-    styleInstruction = "Data visualization, 3D infographic style, clean geometry.";
+    styleInstruction = "Data visualization, 3D infographic style, clean geometry, isometric.";
+  } else if (prompt.toLowerCase().includes("wireframe")) {
+    styleInstruction = "Blueprint style, white lines on blue background, technical schematic.";
   }
 
   const enhancedPrompt = `
     Generate an image.
     Subject: ${prompt}
     Style: ${styleInstruction}
-    Color palette: Slate, Blue, White, accents of Gold.
-    NO TEXT, NO LETTERS, NO WORDS in the image.
+    Context: Professional Business Presentation.
+    Constraint: NO TEXT, NO ALPHABET, NO WORDS in the image (unless it is a UI mockup where greeking/lorem ipsum is acceptable).
   `;
 
   try {
     const response = await ai.models.generateContent({
       model: modelId,
-      contents: {
-        parts: [{ text: enhancedPrompt }]
-      },
-      config: {
-        imageConfig: {
-          aspectRatio: "16:9"
-        }
-      }
+      contents: { parts: [{ text: enhancedPrompt }] },
+      config: { imageConfig: { aspectRatio: "16:9" } }
     });
 
     const parts = response.candidates?.[0]?.content?.parts;
-    if (!parts) {
-      console.warn("No content generated for image");
-      return "";
-    }
+    if (!parts) return "";
 
     for (const part of parts) {
-      if (part.inlineData) {
-        return part.inlineData.data; // Base64 string
-      }
+      if (part.inlineData) return part.inlineData.data;
     }
-    
-    const textPart = parts.find(p => p.text);
-    if (textPart) {
-      console.warn("Model returned text instead of image:", textPart.text);
-    }
-
     return "";
   } catch (error) {
     console.error("Image generation failed", error);

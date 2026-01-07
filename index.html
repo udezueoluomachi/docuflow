@@ -17,15 +17,18 @@
       }
     </script>
     <style>
-      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;700&display=swap');
+      /* Font Families */
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;700&family=Montserrat:wght@400;600;800&family=Open+Sans:wght@400;600&family=Lato:wght@300;400;700&display=swap');
       
       body {
         font-family: 'Inter', sans-serif;
       }
       
-      .font-serif {
-        font-family: 'Playfair Display', serif;
-      }
+      /* Typography Utilities */
+      .font-serif { font-family: 'Playfair Display', serif; }
+      .font-montserrat { font-family: 'Montserrat', sans-serif; }
+      .font-opensans { font-family: 'Open Sans', sans-serif; }
+      .font-lato { font-family: 'Lato', sans-serif; }
 
       /* Hide scrollbar for clean presentation view */
       .no-scrollbar::-webkit-scrollbar {
@@ -34,6 +37,36 @@
       .no-scrollbar {
         -ms-overflow-style: none;
         scrollbar-width: none;
+      }
+
+      /* Print / PDF Export Styles */
+      @media print {
+        @page {
+          size: landscape;
+          margin: 0;
+        }
+        body * {
+          visibility: hidden;
+        }
+        #print-container, #print-container * {
+          visibility: visible;
+        }
+        #print-container {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 100%;
+          background: white;
+        }
+        .print-slide {
+          break-after: page;
+          page-break-after: always;
+          width: 100vw;
+          height: 100vh;
+          overflow: hidden;
+          print-color-adjust: exact;
+          -webkit-print-color-adjust: exact;
+        }
       }
     </style>
   </head>

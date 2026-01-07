@@ -19,10 +19,18 @@ export interface Slide {
   speakerNotes: string;
 }
 
+export type DesignTheme = 'modern' | 'elegant' | 'tech' | 'minimal';
+
+export interface PresentationStyle {
+  theme: DesignTheme;
+  primaryColor: string;
+  fontScale: number; // 0.8 to 1.2
+}
+
 export interface Presentation {
   title: string;
   slides: Slide[];
-  theme: 'light' | 'dark' | 'navy';
+  style: PresentationStyle;
 }
 
 export type GenerationStage = 'IDLE' | 'ANALYZING_DOC' | 'GENERATING_STRUCTURE' | 'GENERATING_IMAGES' | 'COMPLETE' | 'ERROR';
